@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from scalpel.sae import SAEWrapper
+from scalpel.sae import SAEWrapper, _layer_from_hook
 
 
 def test_shapes(random_sae: SAEWrapper) -> None:
@@ -94,6 +94,17 @@ def test_dimension_mismatch_raises() -> None:
             hook_name="h",
             layer=0,
         )
+
+
+def test_layer_from_hook() -> None:
+    assert _layer_from_hook("blocks.7.hook_resid_pre") == 7
+    assert _layer_from_hook("blocks.12.hook_resid_post") == 12
+    assert _layer_from_hook("blocks.0.hook_resid_post") == 0
+
+
+def test_layer_from_hook_invalid() -> None:
+    with pytest.raises(ValueError, match="infer layer"):
+        _layer_from_hook("resid_pre")
 
 
 def test_reconstruct_stats_stable_across_reshape(random_sae: SAEWrapper) -> None:

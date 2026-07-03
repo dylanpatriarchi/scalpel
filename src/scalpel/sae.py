@@ -16,10 +16,19 @@ hand-built tiny SAE and no model download.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
 import torch
+
+
+def _layer_from_hook(hook_name: str) -> int:
+    """Extract the block index from a hook name like ``blocks.7.hook_resid_pre``."""
+    match = re.search(r"blocks\.(\d+)", hook_name)
+    if match is None:
+        raise ValueError(f"Cannot infer layer index from hook name: {hook_name!r}")
+    return int(match.group(1))
 
 
 @dataclass
@@ -169,8 +178,14 @@ class SAEWrapper:
         # across versions; normalise both.
         sae = loaded[0] if isinstance(loaded, tuple) else loaded
 
-        hook_name = getattr(sae.cfg, "hook_name", f"blocks.{getattr(sae.cfg, 'hook_layer', 0)}")
-        layer = int(getattr(sae.cfg, "hook_layer", 0))
+        # In sae-lens 6.x the hook name lives on cfg.metadata; older versions
+        # exposed it directly on cfg. There is no explicit layer index, so we
+        # parse it from the hook name.
+        metadata = getattr(sae.cfg, "metadata", None)
+        hook_name = getattr(metadata, "hook_name", None) or getattr(sae.cfg, "hook_name", None)
+        if hook_name is None:
+            raise ValueError(f"Could not determine hook name for SAE {release}/{sae_id}")
+        layer = _layer_from_hook(hook_name)
         return cls(
             W_enc=sae.W_enc.detach(),
             W_dec=sae.W_dec.detach(),
