@@ -1,0 +1,27 @@
+# CPU-only smoke / CI showcase: gpt2-small + a released SAE (Joseph Bloom's
+# resid_pre SAEs). Runs anywhere, no GPU required.
+seed: 0
+
+model:
+  name: gpt2
+  backend: transformerlens
+  device: auto        # auto -> cpu on a machine without CUDA/MPS
+  dtype: float32
+
+sae:
+  release: gpt2-small-res-jb
+  sae_id: blocks.7.hook_resid_pre
+  layer: 7
+  hook_name: blocks.7.hook_resid_pre
+
+steer:
+  coefs: [-8, -4, -2, -1, 0, 1, 2, 4, 8]
+  max_new_tokens: 40
+
+eval:
+  judge_model: qwen2.5:7b
+  judge_host: http://localhost:11434
+  prompts:
+    - "I think that"
+    - "The weather today"
+    - "Let me tell you about"
