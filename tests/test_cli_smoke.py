@@ -38,8 +38,21 @@ def test_build_sae_mock_is_identity() -> None:
     assert sae.d_model == backend.d_model
 
 
-def test_unimplemented_commands_return_2(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["discover", "--concept", "dogs"]) == 2
+def test_discover_mock_runs(capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(["discover", "--concept", "dog", "--backend", "mock", "--top-k", "5"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "scalpel discover" in out
+    assert "top 5 features" in out
+
+
+def test_discover_no_match_returns_2(capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(["discover", "--concept", "zzznotincorpus", "--backend", "mock"])
+    assert rc == 2
+    assert "No snippet" in capsys.readouterr().err
+
+
+def test_unimplemented_commands_return_2() -> None:
     assert main(["steer", "--feature", "1", "--coef", "2", "--prompt", "hi"]) == 2
     assert main(["eval"]) == 2
 
