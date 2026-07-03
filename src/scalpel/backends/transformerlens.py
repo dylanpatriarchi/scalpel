@@ -63,9 +63,18 @@ class TransformerLensBackend:
         vector: torch.Tensor | None = None,
         coef: float = 0.0,
     ) -> str:
-        # Steering injection lands in milestone 3; milestone 1 only needs the
-        # unsteered path so the backend is usable end to end.
-        if vector is not None and coef != 0.0:
-            raise NotImplementedError("Steered generation arrives in milestone 3")
-        out = self.model.generate(prompt, max_new_tokens=max_new_tokens, verbose=False)
-        return str(out)
+        # Greedy decoding keeps before/after comparisons deterministic so the
+        # only variable is the steering vector.
+        kwargs = {
+            "max_new_tokens": max_new_tokens,
+            "verbose": False,
+            "do_sample": False,
+        }
+        if vector is None or coef == 0.0 or hook_name is None:
+            return str(self.model.generate(prompt, **kwargs))
+
+        from ..steering import make_steering_hook
+
+        hook = make_steering_hook(vector.to(self._device), coef)
+        with self.model.hooks(fwd_hooks=[(hook_name, hook)]):
+            return str(self.model.generate(prompt, **kwargs))
