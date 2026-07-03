@@ -1,0 +1,67 @@
+# Small illustrative corpus for feature discovery.
+# One snippet per line; blank lines and lines starting with '#' are ignored.
+# Deliberately clustered by concept so contrastive discovery has signal.
+
+# --- dogs ---
+The dog ran across the yard chasing after the red rubber ball.
+My neighbour's dog barks every morning when the postman arrives.
+A loyal dog will wait by the door for its owner to come home.
+Puppies love to chew on shoes and nap in warm patches of sunlight.
+The golden retriever wagged its tail and licked the child's face.
+We took the dog for a long walk along the muddy riverside trail.
+
+# --- cats ---
+The cat curled up on the windowsill and watched the birds outside.
+A cat will knock a glass off the table just to see what happens.
+Our kitten pounced on the ball of yarn and rolled across the floor.
+The old tabby cat purred softly as it dozed by the fireplace.
+Cats spend most of the day sleeping and grooming their soft fur.
+
+# --- weather ---
+Dark storm clouds gathered over the hills before the heavy rain fell.
+The weather forecast promised sunshine but delivered a cold drizzle.
+A gentle breeze carried the smell of rain across the open fields.
+Thunder rumbled in the distance as lightning split the night sky.
+It was a bright, warm afternoon with barely a cloud in the sky.
+
+# --- ocean ---
+The waves crashed against the rocks and sprayed foam into the air.
+Deep in the ocean, strange fish glow in the cold and lightless water.
+Sailors watched the horizon as the tide pulled their small boat out.
+The coral reef teemed with colourful fish darting between the rocks.
+Salt spray stung our faces as the ship rolled over the grey swell.
+
+# --- programming ---
+The function returns a list of tokens parsed from the input string.
+She fixed the bug by adding a null check before the array access.
+The compiler threw an error about an undefined variable in the loop.
+We refactored the module to remove the duplicated database queries.
+The unit test failed because the mock returned an unexpected value.
+
+# --- music ---
+The orchestra tuned their instruments before the conductor arrived.
+He strummed the guitar softly while she hummed along to the melody.
+The drummer kept a steady beat as the crowd began to dance and sing.
+A single violin carried the sad tune over the quiet concert hall.
+The song's chorus stayed stuck in my head for the rest of the day.
+
+# --- food ---
+She stirred the simmering tomato sauce and added a pinch of salt.
+The bakery smelled of fresh bread and warm cinnamon in the morning.
+He sliced the ripe mango and arranged the pieces on a white plate.
+We grilled vegetables and shared a bowl of pasta out on the terrace.
+The soup needed more pepper, so I ground some over the steaming bowl.
+
+# --- space ---
+The telescope revealed distant galaxies scattered across the dark void.
+Astronauts floated weightlessly inside the cramped orbiting station.
+The rocket's engines roared as it lifted slowly off the launch pad.
+A comet streaked across the night sky trailing a faint icy tail.
+Mars appears as a small red dot to observers here on planet Earth.
+
+# --- emotions ---
+She felt a warm rush of joy when she saw her old friend again.
+His hands trembled with anger as he read the unfair letter twice.
+A quiet sadness settled over the room after the bad news arrived.
+The children shrieked with delight as the fireworks lit up the park.
+He was gripped by fear walking alone down the dark and silent street.
