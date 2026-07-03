@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets / local env
+.env
+
+# Caches: activations, HF/model weights (never commit large weights)
+.cache/
+.scalpel_cache/
+*.safetensors
+*.bin
+*.pt
+*.npz
+
+# Notebook outputs
+notebooks/**/*.nbconvert.ipynb
+.ipynb_checkpoints/
+
+# Generated artifacts
+outputs/
+results/
+*.png
+!docs/**/*.png
+
+# OS
+.DS_Store
