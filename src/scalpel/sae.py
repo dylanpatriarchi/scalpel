@@ -77,7 +77,9 @@ class SAEWrapper:
         return int(self.W_enc.shape[1])
 
     def _as_float(self, x: torch.Tensor) -> torch.Tensor:
-        return x.to(self.W_enc.dtype)
+        # Follow the weights' device and dtype so activations captured on CPU
+        # work against an SAE loaded on MPS/CUDA (and vice versa).
+        return x.to(device=self.W_enc.device, dtype=self.W_enc.dtype)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         """Map activations ``[..., d_model]`` to sparse features ``[..., d_sae]``."""
