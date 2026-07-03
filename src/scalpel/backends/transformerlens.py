@@ -8,6 +8,7 @@ exercised by the offline unit tests — covered by the gated real-model smoke jo
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import torch
@@ -29,6 +30,11 @@ class TransformerLensBackend:
 
         self.cfg = cfg
         self._device = resolve_device(cfg.model.device)
+        # MPS on some PyTorch builds warns it "may be silently incorrect". The
+        # user opts into MPS via the config; acknowledge it so output stays
+        # clean, and flag the correctness caveat in the README.
+        if self._device == "mps":
+            os.environ.setdefault("TRANSFORMERLENS_ALLOW_MPS", "1")
         dtype = _DTYPES.get(cfg.model.dtype, torch.float32)
         self.model: Any = HookedTransformer.from_pretrained(
             cfg.model.name, device=self._device, dtype=dtype

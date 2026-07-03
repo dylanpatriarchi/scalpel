@@ -5,7 +5,10 @@ seed: 0
 model:
   name: gpt2
   backend: transformerlens
-  device: auto        # auto -> cpu on a machine without CUDA/MPS
+  # Pinned to CPU on purpose: this is the portable CPU/CI path, gpt2 is tiny,
+  # and it sidesteps the "MPS may be silently incorrect" warning on Apple
+  # Silicon. Use the gemma config (device: auto) to exercise MPS/CUDA.
+  device: cpu
   dtype: float32
 
 sae:
