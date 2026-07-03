@@ -61,6 +61,7 @@ class SAEWrapper:
         *,
         hook_name: str,
         layer: int,
+        neuronpedia_id: str | None = None,
         raw: Any = None,
     ) -> None:
         if W_enc.shape[0] != W_dec.shape[1]:
@@ -75,6 +76,9 @@ class SAEWrapper:
         self.b_dec = b_dec
         self.hook_name = hook_name
         self.layer = layer
+        # Neuronpedia source id (e.g. "gpt2-small/7-res-jb"), if known — lets us
+        # look up released human labels for a discovered feature.
+        self.neuronpedia_id = neuronpedia_id
         self.raw = raw  # underlying sae_lens.SAE, if any
 
     @property
@@ -186,6 +190,7 @@ class SAEWrapper:
         if hook_name is None:
             raise ValueError(f"Could not determine hook name for SAE {release}/{sae_id}")
         layer = _layer_from_hook(hook_name)
+        neuronpedia_id = getattr(metadata, "neuronpedia_id", None)
         return cls(
             W_enc=sae.W_enc.detach(),
             W_dec=sae.W_dec.detach(),
@@ -193,5 +198,6 @@ class SAEWrapper:
             b_dec=sae.b_dec.detach(),
             hook_name=hook_name,
             layer=layer,
+            neuronpedia_id=neuronpedia_id,
             raw=sae,
         )
