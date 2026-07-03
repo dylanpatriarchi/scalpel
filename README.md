@@ -19,10 +19,11 @@ direction causally controls a specific, human-interpretable behavior:
   of equal norm and a mean-difference steering vector. *Without the
   random-direction control the result is not credible, so it is never skipped.*
 
-> Status: **Milestones 1–2 complete** — scaffold, config, SAE loading, an offline
-> reconstruction sanity check, and contrastive **feature discovery** with
-> Neuronpedia labels. Later milestones add the steering hook, the metrics, the
-> baseline controls, and the demo notebook. See the [roadmap](#roadmap).
+> Status: **Milestones 1–3 complete** — scaffold, config, SAE loading, an offline
+> reconstruction sanity check, contrastive **feature discovery** with Neuronpedia
+> labels, and the causal **steering hook** (qualitative before/after). Later
+> milestones add the quantitative metrics, the baseline controls, and the demo
+> notebook. See the [roadmap](#roadmap).
 
 ---
 
@@ -137,7 +138,33 @@ scalpel discover  concept='dog'  terms=['dog', 'puppy']
 
 Feature **8243** fires at ~46 on dog snippets and ~0.16 everywhere else — the
 Neuronpedia label is literally *"references to dogs"*. That is the feature we
-steer on in the next milestone.
+steer on next.
+
+**Steer** generation on that feature. Scalpel adds `coef · W_dec[8243]` to the
+residual at layer 7 during greedy decoding, so the *only* difference between the
+two completions is the steering vector:
+
+```bash
+scalpel steer --feature 8243 --coef 40 \
+  --prompt "My favorite thing to do on the weekend is" \
+  --config configs/gpt2-small.yaml
+```
+
+Real output on gpt2-small:
+
+```
+--- unsteered ---
+My favorite thing to do on the weekend is to go to the beach and watch the
+sunset. I love the view of the ocean and the beautiful views of the ocean. ...
+
+--- steered ---
+My favorite thing to do on the weekend is to play with my dog. I love it, but
+I can't really say it's my favorite. ...
+```
+
+The dog concept is injected causally while the text stays fluent — the
+qualitative version of the dose-response and fluency results that the next
+milestone measures.
 
 ---
 
@@ -147,7 +174,7 @@ steer on in the next milestone.
 | --- | --- | --- |
 | `scalpel smoke` | ✅ M1 | Load a model + SAE and report reconstruction error. |
 | `scalpel discover --concept X` | ✅ M2 | Find the SAE feature(s) most associated with a concept. |
-| `scalpel steer --feature N --coef C --prompt "..."` | 🔜 M3 | Steer generation with a feature direction. |
+| `scalpel steer --feature N --coef C --prompt "..."` | ✅ M3 | Steer generation with a feature direction. |
 | `scalpel eval` | 🔜 M4 | Coefficient sweep → dose-response, fluency, specificity, baselines. |
 
 ---
@@ -195,7 +222,7 @@ gpt2-small reconstruction smoke.
 
 1. **✅ Scaffold + reconstruction sanity** — package, config, SAE loading, `scalpel smoke`.
 2. **✅ Feature discovery** — contrastive scoring + max-activating examples over a corpus; Neuronpedia labels.
-3. **Steering hook** — inject the feature direction during generation; qualitative before/after.
+3. **✅ Steering hook** — inject the feature direction during generation; qualitative before/after.
 4. **Measurement** — effect + fluency metrics; coefficient sweep → dose-response plot.
 5. **Controls** — random-direction and mean-difference baselines; specificity panel.
 6. **Package** — CLI polish, reproducible demo notebook, README with plots + results table.
