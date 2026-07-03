@@ -86,26 +86,31 @@ scalpel smoke --backend mock
 ```
 
 Run the **real CPU smoke check** on gpt2-small + a released SAE (downloads the
-model and SAE on first run, then caches them):
+model and SAE on first run, then caches them; needs the `models` extra):
 
 ```bash
 scalpel smoke --config configs/gpt2-small.yaml
 ```
 
-Expected output (shape):
+Real output on gpt2-small (`gpt2-small-res-jb`, layer 7) — the SAE recovers
+~99.9% of the residual-stream variance with ~47 active latents per token, which
+is exactly the healthy range for these SAEs:
 
 ```
 scalpel smoke
-  backend           : mock
-  model             : mock
+  backend           : transformerlens
+  model             : gpt2
   device            : cpu
-  hook              : blocks.0.hook_resid_post
-  d_model / d_sae   : 16 / 16
-  tokens            : ...
-  reconstruction MSE: 0.000000
-  variance explained: 1.0000
-  mean L0 (sparsity): 16.00
+  hook              : blocks.7.hook_resid_pre
+  d_model / d_sae   : 768 / 24576
+  tokens            : 48
+  reconstruction MSE: 0.654657
+  variance explained: 0.9991
+  mean L0 (sparsity): 47.00
 ```
+
+(The MSE is large only because the residual stream itself has a large norm —
+variance-explained is the meaningful reconstruction metric.)
 
 ---
 
@@ -176,6 +181,12 @@ Fixed seeds across Python / NumPy / PyTorch; content-addressed activation
 caching; greedy or seeded sampling. Some GPU/MPS kernels are not bit-for-bit
 deterministic even with a fixed seed — this residual nondeterminism is expected
 and documented rather than hidden.
+
+**Apple Silicon / MPS caveat.** On some PyTorch builds TransformerLens warns that
+the MPS backend "may be silently incorrect". The portable `gpt2-small` config is
+therefore pinned to CPU. The `gemma-2-2b` config uses `device: auto` (→ MPS on an
+M-series Mac) for speed; Scalpel acknowledges the opt-in, but for numbers you
+intend to report, cross-check a subset on CPU or CUDA.
 
 ## License
 
