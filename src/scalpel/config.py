@@ -7,7 +7,7 @@ without touching code. Nothing about the model or feature is hardcoded.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +15,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-class Backend(str, Enum):
+class Backend(StrEnum):
     """Which hooking backend runs the model."""
 
     transformerlens = "transformerlens"

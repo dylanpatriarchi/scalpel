@@ -59,9 +59,7 @@ class SAEWrapper:
                 f"W_enc d_model ({W_enc.shape[0]}) != W_dec d_model ({W_dec.shape[1]})"
             )
         if W_enc.shape[1] != W_dec.shape[0]:
-            raise ValueError(
-                f"W_enc d_sae ({W_enc.shape[1]}) != W_dec d_sae ({W_dec.shape[0]})"
-            )
+            raise ValueError(f"W_enc d_sae ({W_enc.shape[1]}) != W_dec d_sae ({W_dec.shape[0]})")
         self.W_enc = W_enc
         self.W_dec = W_dec
         self.b_enc = b_enc
@@ -156,15 +154,13 @@ class SAEWrapper:
         )
 
     @classmethod
-    def from_pretrained(
-        cls, release: str, sae_id: str, device: str = "cpu"
-    ) -> SAEWrapper:
+    def from_pretrained(cls, release: str, sae_id: str, device: str = "cpu") -> SAEWrapper:
         """Load a released SAE through SAELens.
 
         Requires the optional ``models`` extra. Not exercised by the offline
         unit tests; covered by the gated real-model smoke job.
         """
-        from sae_lens import SAE  # type: ignore[import-not-found]
+        from sae_lens import SAE
 
         loaded = SAE.from_pretrained(release, sae_id, device=device)
         # SAELens has returned either an SAE or a (sae, cfg, sparsity) tuple

@@ -25,7 +25,7 @@ class TransformerLensBackend:
     """Hooked-model backend built on TransformerLens."""
 
     def __init__(self, cfg: ScalpelConfig) -> None:
-        from transformer_lens import HookedTransformer  # type: ignore[import-not-found]
+        from transformer_lens import HookedTransformer
 
         self.cfg = cfg
         self._device = resolve_device(cfg.model.device)
@@ -61,7 +61,5 @@ class TransformerLensBackend:
         # unsteered path so the backend is usable end to end.
         if vector is not None and coef != 0.0:
             raise NotImplementedError("Steered generation arrives in milestone 3")
-        out = self.model.generate(
-            prompt, max_new_tokens=max_new_tokens, verbose=False
-        )
+        out = self.model.generate(prompt, max_new_tokens=max_new_tokens, verbose=False)
         return str(out)
