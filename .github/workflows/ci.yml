@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast, download-free gate: lint, format, types, and the offline unit suite
+  # (mock backend + hand-built tiny SAEs). No model weights are fetched.
+  quality:
+    name: quality (${{ matrix.os }} / py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv venv --python ${{ matrix.python-version }} .venv
+
+      - name: Install (dev extras only)
+        run: uv pip install --python .venv -e ".[dev]"
+
+      - name: Ruff (lint)
+        run: .venv/bin/ruff check .
+
+      - name: Black (format check)
+        run: .venv/bin/black --check .
+
+      - name: Mypy (types)
+        run: .venv/bin/mypy
+
+      - name: Pytest (offline unit suite)
+        run: .venv/bin/pytest
+
+  # Optional, opt-in job: run the REAL gpt2-small reconstruction smoke. This
+  # downloads the model + a released SAE, so it is kept off the fast path and
+  # triggered manually (workflow_dispatch) to keep CI green and quick.
+  real-smoke:
+    name: real gpt2-small smoke
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv venv --python 3.12 .venv
+
+      - name: Install (with model stack)
+        run: uv pip install --python .venv -e ".[dev,models]"
+
+      - name: Smoke on real gpt2-small
+        run: .venv/bin/scalpel smoke --config configs/gpt2-small.yaml
