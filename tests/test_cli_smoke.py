@@ -52,8 +52,23 @@ def test_discover_no_match_returns_2(capsys: pytest.CaptureFixture[str]) -> None
     assert "No snippet" in capsys.readouterr().err
 
 
+def test_steer_mock_runs(capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(["steer", "--feature", "1", "--coef", "3", "--prompt", "hello", "--backend", "mock"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "--- unsteered ---" in out
+    assert "--- steered ---" in out
+    # The mock backend tags steered output with the coefficient.
+    assert "coef=3" in out
+
+
+def test_steer_out_of_range_feature_returns_2(capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(["steer", "--feature", "9999", "--coef", "1", "--prompt", "hi", "--backend", "mock"])
+    assert rc == 2
+    assert "out of range" in capsys.readouterr().err
+
+
 def test_unimplemented_commands_return_2() -> None:
-    assert main(["steer", "--feature", "1", "--coef", "2", "--prompt", "hi"]) == 2
     assert main(["eval"]) == 2
 
 
