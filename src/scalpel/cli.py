@@ -128,7 +128,41 @@ def cmd_discover(args: argparse.Namespace) -> int:
 
 
 def cmd_steer(args: argparse.Namespace) -> int:
-    return _not_yet("steer", 3)
+    """Generate with and without a feature-steering vector (qualitative before/after)."""
+    import torch
+
+    cfg = _load_cfg(args.config, args.backend, args.seed)
+    set_seed(cfg.seed)
+
+    backend = build_backend(cfg)
+    sae = build_sae(cfg, backend)
+    try:
+        vector = sae.feature_direction(args.feature)
+    except IndexError as exc:
+        print(f"steer: {exc}", file=sys.stderr)
+        return 2
+    hook_name = sae.hook_name
+    norm = float(torch.linalg.vector_norm(vector).item())
+
+    set_seed(cfg.seed)
+    base = backend.generate(args.prompt, max_new_tokens=args.max_new_tokens, hook_name=hook_name)
+    set_seed(cfg.seed)
+    steered = backend.generate(
+        args.prompt,
+        max_new_tokens=args.max_new_tokens,
+        hook_name=hook_name,
+        vector=vector,
+        coef=args.coef,
+    )
+
+    print(f"scalpel steer  feature={args.feature}  coef={args.coef:g}")
+    print(f"  hook              : {hook_name}")
+    print(f"  |direction| / step: {norm:.3f} / {abs(args.coef) * norm:.3f}")
+    print("\n--- unsteered ---")
+    print(base)
+    print("\n--- steered ---")
+    print(steered)
+    return 0
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
@@ -174,10 +208,17 @@ def build_parser() -> argparse.ArgumentParser:
     discover.set_defaults(func=cmd_discover)
 
     steer = sub.add_parser("steer", help="Steer generation with a feature direction.")
-    steer.add_argument("--feature", type=int, required=True)
-    steer.add_argument("--coef", type=float, required=True)
-    steer.add_argument("--prompt", required=True)
-    steer.add_argument("--config")
+    steer.add_argument("--feature", type=int, required=True, help="SAE feature index to steer on.")
+    steer.add_argument(
+        "--coef", type=float, required=True, help="Steering coefficient (may be <0)."
+    )
+    steer.add_argument("--prompt", required=True, help="Prompt to complete.")
+    steer.add_argument("--config", help="YAML config (defaults to the mock backend).")
+    steer.add_argument(
+        "--backend", choices=[b.value for b in Backend], help="Override the config backend."
+    )
+    steer.add_argument("--seed", type=int, help="Override the config seed.")
+    steer.add_argument("--max-new-tokens", type=int, default=40, help="Tokens to generate.")
     steer.set_defaults(func=cmd_steer)
 
     ev = sub.add_parser("eval", help="Run the coefficient sweep and metrics.")
