@@ -19,10 +19,10 @@ direction causally controls a specific, human-interpretable behavior:
   of equal norm and a mean-difference steering vector. *Without the
   random-direction control the result is not credible, so it is never skipped.*
 
-> Status: **Milestone 1 complete** — scaffold, config, SAE loading, and an
-> offline reconstruction sanity check. Later milestones add feature discovery,
-> the steering hook, the metrics, the baseline controls, and the demo notebook.
-> See the [roadmap](#roadmap).
+> Status: **Milestones 1–2 complete** — scaffold, config, SAE loading, an offline
+> reconstruction sanity check, and contrastive **feature discovery** with
+> Neuronpedia labels. Later milestones add the steering hook, the metrics, the
+> baseline controls, and the demo notebook. See the [roadmap](#roadmap).
 
 ---
 
@@ -112,6 +112,33 @@ scalpel smoke
 (The MSE is large only because the residual stream itself has a large norm —
 variance-explained is the meaningful reconstruction metric.)
 
+Run **feature discovery** for a concept. Scalpel splits the corpus into
+concept-positive / negative snippets, encodes each to SAE features, and ranks
+features by a contrastive score (`mean(pos) − mean(neg)`):
+
+```bash
+scalpel discover --concept dog --terms dog puppy \
+  --config configs/gpt2-small.yaml --top-k 8 --labels
+```
+
+Real output on gpt2-small — the top feature is sharply concept-specific, and the
+`--labels` flag confirms it against Neuronpedia:
+
+```
+scalpel discover  concept='dog'  terms=['dog', 'puppy']
+  hook              : blocks.7.hook_resid_pre
+  neuronpedia       : gpt2-small/7-res-jb
+  positive/negative : 4/42 snippets
+  top 8 features (contrastive score = pos_mean - neg_mean):
+    #1  feature 8243   score=+45.910  pos=46.074 neg=0.164  — references to dogs
+         e.g. "The dog ran across the yard chasing after the red rubber ball."
+    ...
+```
+
+Feature **8243** fires at ~46 on dog snippets and ~0.16 everywhere else — the
+Neuronpedia label is literally *"references to dogs"*. That is the feature we
+steer on in the next milestone.
+
 ---
 
 ## CLI
@@ -119,7 +146,7 @@ variance-explained is the meaningful reconstruction metric.)
 | Command | Status | Purpose |
 | --- | --- | --- |
 | `scalpel smoke` | ✅ M1 | Load a model + SAE and report reconstruction error. |
-| `scalpel discover --concept X` | 🔜 M2 | Find the SAE feature(s) most associated with a concept. |
+| `scalpel discover --concept X` | ✅ M2 | Find the SAE feature(s) most associated with a concept. |
 | `scalpel steer --feature N --coef C --prompt "..."` | 🔜 M3 | Steer generation with a feature direction. |
 | `scalpel eval` | 🔜 M4 | Coefficient sweep → dose-response, fluency, specificity, baselines. |
 
@@ -167,7 +194,7 @@ gpt2-small reconstruction smoke.
 ## Roadmap
 
 1. **✅ Scaffold + reconstruction sanity** — package, config, SAE loading, `scalpel smoke`.
-2. **Feature discovery** — max-activating examples over a corpus; select a target feature; Neuronpedia labels.
+2. **✅ Feature discovery** — contrastive scoring + max-activating examples over a corpus; Neuronpedia labels.
 3. **Steering hook** — inject the feature direction during generation; qualitative before/after.
 4. **Measurement** — effect + fluency metrics; coefficient sweep → dose-response plot.
 5. **Controls** — random-direction and mean-difference baselines; specificity panel.
