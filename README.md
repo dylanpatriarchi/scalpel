@@ -19,11 +19,38 @@ direction causally controls a specific, human-interpretable behavior:
   of equal norm and a mean-difference steering vector. *Without the
   random-direction control the result is not credible, so it is never skipped.*
 
-> Status: **Milestones 1–3 complete** — scaffold, config, SAE loading, an offline
+> Status: **Milestones 1–4 complete** — scaffold, config, SAE loading, an offline
 > reconstruction sanity check, contrastive **feature discovery** with Neuronpedia
-> labels, and the causal **steering hook** (qualitative before/after). Later
-> milestones add the quantitative metrics, the baseline controls, and the demo
-> notebook. See the [roadmap](#roadmap).
+> labels, the causal **steering hook**, and the quantitative **measurement**
+> (dose-response + fluency). Still to come: the baseline controls and specificity
+> (M5) and the demo notebook (M6). See the [roadmap](#roadmap).
+
+## Headline result
+
+gpt2-small · SAE `gpt2-small-res-jb` layer 7 · feature **8243** (*"references to
+dogs"*) · concept **dog** · 8 prompts, keyword effect scorer:
+
+![Dose-response for the dog feature](docs/dose_response.png)
+
+| coef | effect `[0,1]` | perplexity | KL(steered‖base) |
+|-----:|:--------------:|:----------:|:----------------:|
+| −40  | 0.000 | 5.57 | 0.117 |
+|   0  | 0.000 | 4.44 | 0.000 |
+|  20  | 0.042 | 3.48 | 0.037 |
+|  30  | 0.250 | 3.37 | 0.095 |
+|  40  | 0.458 | 4.39 | 0.186 |
+| **50** | **0.583** | **4.63** | **0.308** |
+|  60  | 0.292 | 7.47 | 0.452 |
+
+Adding the SAE feature direction causally raises the dog concept with a clear
+**dose-response**, peaking at coef 50; push past it (coef 60) and perplexity
+jumps (4.6 → 7.5) as coherence breaks — the fluency-limited sweet spot. KL rises
+monotonically with `|coef|`. Negative coefficients don't create dogs (the concept
+is already absent from neutral prompts), as expected for an additive intervention.
+
+> ⚠️ Not yet credible on its own: the **random-direction and mean-difference
+> baselines** (M5) are what prove the SAE feature is *more targeted per unit of
+> fluency cost*. Regenerate everything with `scalpel eval` (see below).
 
 ---
 
@@ -163,8 +190,19 @@ I can't really say it's my favorite. ...
 ```
 
 The dog concept is injected causally while the text stays fluent — the
-qualitative version of the dose-response and fluency results that the next
-milestone measures.
+qualitative version of the dose-response and fluency results below.
+
+**Measure** the whole dose-response: sweep the coefficient, score concept
+**effect** (keyword scorer, or `--judge` for the Ollama LLM-judge), and track
+**fluency** (perplexity + KL). Writes a CSV/JSON table and the plots:
+
+```bash
+scalpel eval --feature 8243 --concept dog --terms dog dogs puppy puppies \
+  --coefs -40 -20 -10 0 10 20 30 40 50 60 \
+  --config configs/gpt2-small.yaml --out outputs/gpt2_dog
+```
+
+This regenerates the [headline result](#headline-result) plot and table above.
 
 ---
 
@@ -175,7 +213,7 @@ milestone measures.
 | `scalpel smoke` | ✅ M1 | Load a model + SAE and report reconstruction error. |
 | `scalpel discover --concept X` | ✅ M2 | Find the SAE feature(s) most associated with a concept. |
 | `scalpel steer --feature N --coef C --prompt "..."` | ✅ M3 | Steer generation with a feature direction. |
-| `scalpel eval` | 🔜 M4 | Coefficient sweep → dose-response, fluency, specificity, baselines. |
+| `scalpel eval` | ✅ M4 | Coefficient sweep → dose-response + fluency (baselines/specificity land in M5). |
 
 ---
 
@@ -223,7 +261,7 @@ gpt2-small reconstruction smoke.
 1. **✅ Scaffold + reconstruction sanity** — package, config, SAE loading, `scalpel smoke`.
 2. **✅ Feature discovery** — contrastive scoring + max-activating examples over a corpus; Neuronpedia labels.
 3. **✅ Steering hook** — inject the feature direction during generation; qualitative before/after.
-4. **Measurement** — effect + fluency metrics; coefficient sweep → dose-response plot.
+4. **✅ Measurement** — effect (keyword + Ollama judge) + fluency (perplexity/KL); coefficient sweep → dose-response plot.
 5. **Controls** — random-direction and mean-difference baselines; specificity panel.
 6. **Package** — CLI polish, reproducible demo notebook, README with plots + results table.
 
