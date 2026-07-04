@@ -37,6 +37,8 @@ models = ["transformer-lens>=2.0", "sae-lens>=4.0"]
 judge = ["requests>=2.31"]
 # Plotting and results tables.
 viz = ["matplotlib>=3.8", "pandas>=2.2"]
+# Running the reproducible demo notebook.
+notebook = ["jupyter>=1.0", "nbconvert>=7.0", "ipykernel>=6.29"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
@@ -61,6 +63,8 @@ packages = ["src/scalpel"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+# Notebooks use inline imports / display semicolons; outputs are generated.
+extend-exclude = ["notebooks", "outputs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
