@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 import torch
 
 from .backends.base import ModelBackend
-from .cache import ActivationCache, make_key
+from .cache import ActivationCache, capture_cached
 from .sae import SAEWrapper
 
 
@@ -119,14 +119,7 @@ def snippet_feature_matrix(
     """
     rows: list[torch.Tensor] = []
     for snippet in snippets:
-        acts: torch.Tensor | None = None
-        key = make_key(model_name, hook_name, snippet) if cache is not None else ""
-        if cache is not None:
-            acts = cache.get(key)
-        if acts is None:
-            acts = backend.capture_resid(snippet, hook_name)
-            if cache is not None:
-                cache.put(key, acts)
+        acts = capture_cached(backend, snippet, hook_name, cache=cache, model_name=model_name)
         features = sae.encode(acts)  # [tokens, d_sae]
         rows.append(features.max(dim=0).values.detach().cpu())
     return torch.stack(rows)  # [n_snippets, d_sae]

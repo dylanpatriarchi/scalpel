@@ -10,8 +10,12 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
+
+if TYPE_CHECKING:
+    from .backends.base import ModelBackend
 
 DEFAULT_CACHE_DIR = ".scalpel_cache"
 
@@ -54,3 +58,23 @@ class ActivationCache:
         path = self._path(key)
         torch.save(tensor.detach().cpu(), path)
         return path
+
+
+def capture_cached(
+    backend: ModelBackend,
+    text: str,
+    hook_name: str,
+    *,
+    cache: ActivationCache | None = None,
+    model_name: str = "",
+) -> torch.Tensor:
+    """Capture residual activations for ``text``, reusing the cache if given."""
+    if cache is None:
+        return backend.capture_resid(text, hook_name)
+    key = make_key(model_name, hook_name, text)
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    acts = backend.capture_resid(text, hook_name)
+    cache.put(key, acts)
+    return acts
