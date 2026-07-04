@@ -92,18 +92,13 @@ def plot_baseline_comparison(
     }
 
     fig, ax = plt.subplots(figsize=(6, 4))
+    # Scatter, not a line: points come from different coefficients, so connecting
+    # them in KL order would fabricate a misleading trajectory.
     for label, result in results.items():
         color, marker, name = styles.get(label, ("#111827", ".", label))
         kls = [row.mean_kl for row in result.rows]
         effects = [row.mean_effect for row in result.rows]
-        order = sorted(range(len(kls)), key=lambda i: kls[i])
-        ax.plot(
-            [kls[i] for i in order],
-            [effects[i] for i in order],
-            marker=marker,
-            color=color,
-            label=name,
-        )
+        ax.scatter(kls, effects, marker=marker, color=color, label=name, s=55, alpha=0.85)
     ax.set_xlabel("KL(steered ‖ unsteered)  [nats]  — fluency cost")
     ax.set_ylabel("mean concept effect  [0, 1]")
     ax.set_title("Targeted-ness per unit fluency cost" + (f": {concept}" if concept else ""))
