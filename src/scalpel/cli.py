@@ -12,11 +12,13 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import torch
+
 from .backends import ModelBackend, build_backend
 from .cache import ActivationCache
 from .config import Backend, ScalpelConfig, load_config, mock_config
 from .corpus import load_corpus
-from .discovery import discover_features
+from .discovery import discover_features, label_snippets
 from .experiment import SweepResult, run_sweep
 from .metrics.effect import EffectScorer, JudgeScorer, KeywordScorer
 from .neuronpedia import fetch_label
@@ -132,8 +134,6 @@ def cmd_discover(args: argparse.Namespace) -> int:
 
 def cmd_steer(args: argparse.Namespace) -> int:
     """Generate with and without a feature-steering vector (qualitative before/after)."""
-    import torch
-
     cfg = _load_cfg(args.config, args.backend, args.seed)
     set_seed(cfg.seed)
 
@@ -217,6 +217,11 @@ def cmd_eval(args: argparse.Namespace) -> int:
     print(f"  coefs             : {coefs}")
     print(f"  prompts           : {len(prompts)}")
     scorer = _build_scorer(args, cfg, terms)
+    probe_scorers: dict[str, EffectScorer] = (
+        {p: KeywordScorer([p]) for p in args.probes} if args.probes else {}
+    )
+    if probe_scorers:
+        print(f"  specificity probes: {list(probe_scorers)}")
 
     result = run_sweep(
         backend,
@@ -226,26 +231,118 @@ def cmd_eval(args: argparse.Namespace) -> int:
         coefs,
         scorer,
         label="sae",
+        probe_scorers=probe_scorers,
         max_new_tokens=args.max_new_tokens,
         seed=cfg.seed,
     )
+    print("  [sae]")
     _print_table(result)
 
     out = Path(args.out)
-    csv_path = result.write_csv(out / "sweep_sae.csv")
-    json_path = result.write_json(out / "sweep_sae.json")
-    print(f"  wrote             : {csv_path}  {json_path}")
+    results: dict[str, SweepResult] = {"sae": result}
+    result.write_csv(out / "sweep_sae.csv")
+    result.write_json(out / "sweep_sae.json")
+
+    if args.baselines:
+        results.update(
+            _run_baselines(backend, sae, vector, prompts, coefs, scorer, args, cfg, terms)
+        )
+        for label, res in results.items():
+            if label != "sae":
+                print(f"  [{label}]")
+                _print_table(res)
+                res.write_csv(out / f"sweep_{label}.csv")
+                res.write_json(out / f"sweep_{label}.json")
+
+    print(f"  wrote             : {out}/sweep_*.csv, sweep_*.json")
 
     if not args.no_plots:
-        try:
-            from .plotting import plot_dose_response, plot_fluency
-
-            dr = plot_dose_response(result, out / "dose_response.png", concept=args.concept)
-            fl = plot_fluency(result, out / "fluency.png")
-            print(f"  plots             : {dr}  {fl}")
-        except ImportError:
-            print("  plots             : skipped (install the 'viz' extra)", file=sys.stderr)
+        _write_plots(results, result, out, args)
     return 0
+
+
+def _run_baselines(
+    backend: ModelBackend,
+    sae: SAEWrapper,
+    sae_vector: torch.Tensor,
+    prompts: list[str],
+    coefs: list[float],
+    scorer: EffectScorer,
+    args: argparse.Namespace,
+    cfg: ScalpelConfig,
+    terms: list[str],
+) -> dict[str, SweepResult]:
+    """Run the required random + mean-difference baseline sweeps (norm-matched)."""
+    from .experiment import build_meandiff_direction
+    from .steering import build_random_vector, match_norm
+
+    out: dict[str, SweepResult] = {}
+    mnt, seed = args.max_new_tokens, cfg.seed
+
+    random_vec = build_random_vector(sae_vector, seed=cfg.seed)
+    out["random"] = run_sweep(
+        backend,
+        random_vec,
+        sae.hook_name,
+        prompts,
+        coefs,
+        scorer,
+        label="random",
+        max_new_tokens=mnt,
+        seed=seed,
+    )
+
+    snippets = load_corpus(args.corpus)
+    pos_idx, neg_idx = label_snippets(snippets, terms)
+    if pos_idx and neg_idx:
+        pos = [snippets[i] for i in pos_idx]
+        neg = [snippets[i] for i in neg_idx]
+        md = build_meandiff_direction(backend, sae.hook_name, pos, neg, model_name=cfg.model.name)
+        md = match_norm(md, sae_vector)  # same scale as the SAE column for a fair sweep
+        out["meandiff"] = run_sweep(
+            backend,
+            md,
+            sae.hook_name,
+            prompts,
+            coefs,
+            scorer,
+            label="meandiff",
+            max_new_tokens=mnt,
+            seed=seed,
+        )
+    else:
+        print(
+            "  meandiff          : skipped (corpus lacks positive/negative split)", file=sys.stderr
+        )
+    return out
+
+
+def _write_plots(
+    results: dict[str, SweepResult],
+    sae_result: SweepResult,
+    out: Path,
+    args: argparse.Namespace,
+) -> None:
+    try:
+        from .plotting import (
+            plot_baseline_comparison,
+            plot_dose_response,
+            plot_fluency,
+            plot_specificity,
+        )
+    except ImportError:
+        print("  plots             : skipped (install the 'viz' extra)", file=sys.stderr)
+        return
+
+    paths = [
+        plot_dose_response(sae_result, out / "dose_response.png", concept=args.concept),
+        plot_fluency(sae_result, out / "fluency.png"),
+    ]
+    if len(results) > 1:
+        paths.append(plot_baseline_comparison(results, out / "baselines.png", concept=args.concept))
+    if args.probes:
+        paths.append(plot_specificity(sae_result, out / "specificity.png", target=args.concept))
+    print(f"  plots             : {', '.join(str(p) for p in paths)}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -320,6 +417,13 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--seed", type=int, help="Override the config seed.")
     ev.add_argument("--max-new-tokens", type=int, default=40, help="Tokens to generate per prompt.")
     ev.add_argument("--judge", action="store_true", help="Score with the Ollama LLM-judge.")
+    ev.add_argument(
+        "--baselines",
+        action="store_true",
+        help="Also run the random + mean-difference control sweeps.",
+    )
+    ev.add_argument("--probes", nargs="+", help="Off-target concepts for the specificity check.")
+    ev.add_argument("--corpus", help="Corpus for the mean-difference baseline (default: bundled).")
     ev.add_argument("--out", default="outputs", help="Directory for results and plots.")
     ev.add_argument("--no-plots", action="store_true", help="Skip plot generation.")
     ev.set_defaults(func=cmd_eval)
