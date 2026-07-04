@@ -18,6 +18,7 @@ from collections.abc import Callable
 import torch
 
 from .sae import SAEWrapper
+from .seed import torch_generator
 
 # A TransformerLens-style forward hook: (activation, hook) -> activation.
 SteeringHook = Callable[..., torch.Tensor]
@@ -38,6 +39,36 @@ def build_sae_vector(
         if norm > 0:
             vector = vector / norm
     return vector
+
+
+def match_norm(vector: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
+    """Rescale ``vector`` to have the same L2 norm as ``reference``.
+
+    Used to put every candidate steering direction on the *same* scale, so a
+    shared coefficient sweep is an apples-to-apples comparison and the only
+    difference between SAE / random / mean-difference is the *direction*.
+    """
+    v_norm = torch.linalg.vector_norm(vector)
+    if v_norm == 0:
+        return vector
+    return vector / v_norm * torch.linalg.vector_norm(reference)
+
+
+def build_random_vector(reference: torch.Tensor, *, seed: int = 0) -> torch.Tensor:
+    """A seeded Gaussian direction, norm-matched to ``reference``.
+
+    This is the **required** control: if a random direction of equal norm steers
+    the concept just as well per unit of fluency cost, the SAE feature is not
+    special. Determinism comes from an explicit generator.
+    """
+    generator = torch_generator(seed)
+    vector = torch.randn(reference.shape, generator=generator, dtype=torch.float32)
+    return match_norm(vector, reference)
+
+
+def meandiff_vector(pos_mean: torch.Tensor, neg_mean: torch.Tensor) -> torch.Tensor:
+    """Mean-difference direction ``mean(pos) - mean(neg)`` in residual space."""
+    return pos_mean - neg_mean
 
 
 def apply_steering(resid: torch.Tensor, vector: torch.Tensor, coef: float) -> torch.Tensor:
