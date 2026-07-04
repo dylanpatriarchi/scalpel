@@ -6,7 +6,14 @@ import pytest
 import torch
 
 from scalpel.sae import SAEWrapper
-from scalpel.steering import apply_steering, build_sae_vector, make_steering_hook
+from scalpel.steering import (
+    apply_steering,
+    build_random_vector,
+    build_sae_vector,
+    make_steering_hook,
+    match_norm,
+    meandiff_vector,
+)
 
 
 def test_build_sae_vector_is_decoder_column(random_sae: SAEWrapper) -> None:
@@ -64,3 +71,54 @@ def test_steering_hook_signature_accepts_transformerlens_call() -> None:
     resid = torch.zeros(3, 4)
     out = hook(resid, hook=object())
     assert out.shape == resid.shape
+
+
+# -- baseline directions (milestone 5) -----------------------------------
+
+
+def test_match_norm_matches_reference() -> None:
+    reference = torch.tensor([3.0, 4.0])  # norm 5
+    matched = match_norm(torch.tensor([1.0, 0.0, 0.0, 0.0]), reference)
+    assert torch.linalg.vector_norm(matched).item() == pytest.approx(5.0)
+
+
+def test_match_norm_zero_vector_is_unchanged() -> None:
+    zero = torch.zeros(4)
+    assert torch.equal(match_norm(zero, torch.ones(4)), zero)
+
+
+def test_random_vector_is_norm_matched() -> None:
+    reference = torch.randn(16)
+    rand = build_random_vector(reference, seed=0)
+    assert torch.linalg.vector_norm(rand).item() == pytest.approx(
+        torch.linalg.vector_norm(reference).item(), rel=1e-5
+    )
+
+
+def test_random_vector_is_deterministic() -> None:
+    reference = torch.ones(8)
+    assert torch.equal(
+        build_random_vector(reference, seed=7), build_random_vector(reference, seed=7)
+    )
+
+
+def test_random_vector_differs_by_seed() -> None:
+    reference = torch.ones(8)
+    assert not torch.equal(
+        build_random_vector(reference, seed=1), build_random_vector(reference, seed=2)
+    )
+
+
+def test_random_vector_is_not_the_reference_direction() -> None:
+    reference = torch.randn(64, generator=torch.Generator().manual_seed(0))
+    rand = build_random_vector(reference, seed=1)
+    cos = torch.dot(rand, reference) / (
+        torch.linalg.vector_norm(rand) * torch.linalg.vector_norm(reference)
+    )
+    assert abs(cos.item()) < 0.5  # a random direction is nearly orthogonal in high dim
+
+
+def test_meandiff_vector() -> None:
+    pos = torch.tensor([2.0, 4.0])
+    neg = torch.tensor([1.0, 1.0])
+    assert torch.equal(meandiff_vector(pos, neg), torch.tensor([1.0, 3.0]))

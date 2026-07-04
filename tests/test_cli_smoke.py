@@ -95,6 +95,39 @@ def test_eval_mock_runs(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
     assert (tmp_path / "sweep_sae.json").exists()
 
 
+def test_eval_baselines_and_probes(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(
+        [
+            "eval",
+            "--feature",
+            "1",
+            "--concept",
+            "dog",
+            "--backend",
+            "mock",
+            "--coefs",
+            "0",
+            "4",
+            "--baselines",
+            "--probes",
+            "cat",
+            "ocean",
+            "--no-plots",
+            "--out",
+            str(tmp_path),
+        ]
+    )
+    assert rc == 0
+    # SAE + both required baselines are written.
+    assert (tmp_path / "sweep_sae.csv").exists()
+    assert (tmp_path / "sweep_random.csv").exists()
+    assert (tmp_path / "sweep_meandiff.csv").exists()
+    # Specificity probes appear as columns in the SAE results.
+    header = (tmp_path / "sweep_sae.csv").read_text().splitlines()[0]
+    assert "effect_cat" in header
+    assert "effect_ocean" in header
+
+
 def test_eval_out_of_range_feature_returns_2(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
     rc = main(
         [
