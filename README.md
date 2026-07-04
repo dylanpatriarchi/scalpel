@@ -19,11 +19,11 @@ direction causally controls a specific, human-interpretable behavior:
   of equal norm and a mean-difference steering vector. *Without the
   random-direction control the result is not credible, so it is never skipped.*
 
-> Status: **Milestones 1–5 complete** — scaffold, config, SAE loading, an offline
-> reconstruction sanity check, contrastive **feature discovery** with Neuronpedia
-> labels, the causal **steering hook**, the quantitative **measurement**
-> (dose-response + fluency), and the **baseline controls + specificity**. Still to
-> come: the reproducible demo notebook (M6). See the [roadmap](#roadmap).
+> Status: **Complete (all 6 milestones).** Scaffold, config, SAE loading, an
+> offline reconstruction sanity check, contrastive **feature discovery** with
+> Neuronpedia labels, the causal **steering hook**, the quantitative
+> **measurement** (dose-response + fluency), the **baseline controls +
+> specificity**, and a **reproducible demo notebook**. See the [roadmap](#roadmap).
 
 ## Headline result
 
@@ -261,10 +261,34 @@ Sweeping `coef` (including negative values for suppression) produces the
 dose-response curve. The **baseline controls** replace `steering_vector` with:
 
 - a **random Gaussian direction** L2-normalised to the same norm, and
-- a **mean-difference** vector: `mean(resid | concept-positive) − mean(resid | concept-negative)`.
+- a **mean-difference** vector: `mean(resid | concept-positive) − mean(resid | concept-negative)`,
+  also norm-matched so the sweep is apples-to-apples.
 
-The SAE feature should deliver more targeted effect **per unit of fluency cost**
-than either baseline.
+The SAE feature must clearly beat the **random** direction (it does — decisively).
+Against **mean-difference**, our honest finding is that diff-in-means is
+competitive; we report the comparison as measured rather than assuming the SAE
+wins. See the [baseline controls](#baseline-controls-the-part-that-makes-it-credible).
+
+---
+
+## Reproduce everything
+
+Two ways to regenerate every plot and table:
+
+```bash
+# 1. One CLI command (writes CSV/JSON + all four plots to outputs/gpt2_dog/)
+scalpel eval --feature 8243 --concept dog --terms dog dogs puppy puppies \
+  --coefs -40 -20 -10 0 10 20 30 40 50 60 --baselines --probes cat ocean music \
+  --config configs/gpt2-small.yaml --out outputs/gpt2_dog
+
+# 2. The demo notebook (SAE sanity -> discovery -> steering -> full eval)
+uv pip install -e ".[models,viz,judge,notebook]"
+jupyter nbconvert --to notebook --execute notebooks/demo.ipynb
+```
+
+Fixed seeds make both paths reproducible on CPU; `docs/*.png` are the committed
+outputs of exactly this run. Set `USE_REAL = False` in the notebook for a
+download-free dry run on the mock backend.
 
 ---
 
@@ -292,7 +316,7 @@ gpt2-small reconstruction smoke.
 3. **✅ Steering hook** — inject the feature direction during generation; qualitative before/after.
 4. **✅ Measurement** — effect (keyword + Ollama judge) + fluency (perplexity/KL); coefficient sweep → dose-response plot.
 5. **✅ Controls** — random-direction and mean-difference baselines; specificity panel.
-6. **Package** — CLI polish, reproducible demo notebook, README with plots + results table.
+6. **✅ Package** — CLI, reproducible demo notebook, README with plots + results table, typed tests, CI.
 
 ---
 
