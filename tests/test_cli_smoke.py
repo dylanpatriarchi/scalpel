@@ -68,8 +68,49 @@ def test_steer_out_of_range_feature_returns_2(capsys: pytest.CaptureFixture[str]
     assert "out of range" in capsys.readouterr().err
 
 
-def test_unimplemented_commands_return_2() -> None:
-    assert main(["eval"]) == 2
+def test_eval_mock_runs(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(
+        [
+            "eval",
+            "--feature",
+            "1",
+            "--concept",
+            "dog",
+            "--backend",
+            "mock",
+            "--coefs",
+            "0",
+            "2",
+            "4",
+            "--no-plots",
+            "--out",
+            str(tmp_path),
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "scalpel eval" in out
+    assert "coef" in out
+    assert (tmp_path / "sweep_sae.csv").exists()
+    assert (tmp_path / "sweep_sae.json").exists()
+
+
+def test_eval_out_of_range_feature_returns_2(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(
+        [
+            "eval",
+            "--feature",
+            "9999",
+            "--concept",
+            "dog",
+            "--backend",
+            "mock",
+            "--out",
+            str(tmp_path),
+        ]
+    )
+    assert rc == 2
+    assert "out of range" in capsys.readouterr().err
 
 
 def test_missing_subcommand_errors() -> None:
