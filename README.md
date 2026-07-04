@@ -19,38 +19,62 @@ direction causally controls a specific, human-interpretable behavior:
   of equal norm and a mean-difference steering vector. *Without the
   random-direction control the result is not credible, so it is never skipped.*
 
-> Status: **Milestones 1–4 complete** — scaffold, config, SAE loading, an offline
+> Status: **Milestones 1–5 complete** — scaffold, config, SAE loading, an offline
 > reconstruction sanity check, contrastive **feature discovery** with Neuronpedia
-> labels, the causal **steering hook**, and the quantitative **measurement**
-> (dose-response + fluency). Still to come: the baseline controls and specificity
-> (M5) and the demo notebook (M6). See the [roadmap](#roadmap).
+> labels, the causal **steering hook**, the quantitative **measurement**
+> (dose-response + fluency), and the **baseline controls + specificity**. Still to
+> come: the reproducible demo notebook (M6). See the [roadmap](#roadmap).
 
 ## Headline result
 
 gpt2-small · SAE `gpt2-small-res-jb` layer 7 · feature **8243** (*"references to
-dogs"*) · concept **dog** · 8 prompts, keyword effect scorer:
+dogs"*) · concept **dog** · 6 prompts, keyword effect scorer. Every number below
+comes from one `scalpel eval` run.
 
 ![Dose-response for the dog feature](docs/dose_response.png)
 
 | coef | effect `[0,1]` | perplexity | KL(steered‖base) |
 |-----:|:--------------:|:----------:|:----------------:|
-| −40  | 0.000 | 5.57 | 0.117 |
-|   0  | 0.000 | 4.44 | 0.000 |
-|  20  | 0.042 | 3.48 | 0.037 |
-|  30  | 0.250 | 3.37 | 0.095 |
-|  40  | 0.458 | 4.39 | 0.186 |
-| **50** | **0.583** | **4.63** | **0.308** |
-|  60  | 0.292 | 7.47 | 0.452 |
+| −40  | 0.000 | 5.64 | 0.106 |
+|   0  | 0.000 | 4.45 | 0.000 |
+|  20  | 0.056 | 3.44 | 0.030 |
+|  30  | 0.167 | 3.26 | 0.075 |
+|  40  | 0.444 | 4.78 | 0.144 |
+| **50** | **0.611** | **5.07** | **0.235** |
+|  60  | 0.222 | 8.47 | 0.343 |
 
 Adding the SAE feature direction causally raises the dog concept with a clear
 **dose-response**, peaking at coef 50; push past it (coef 60) and perplexity
-jumps (4.6 → 7.5) as coherence breaks — the fluency-limited sweet spot. KL rises
+jumps (5.1 → 8.5) as coherence breaks — the fluency-limited sweet spot. KL rises
 monotonically with `|coef|`. Negative coefficients don't create dogs (the concept
 is already absent from neutral prompts), as expected for an additive intervention.
 
-> ⚠️ Not yet credible on its own: the **random-direction and mean-difference
-> baselines** (M5) are what prove the SAE feature is *more targeted per unit of
-> fluency cost*. Regenerate everything with `scalpel eval` (see below).
+### Baseline controls (the part that makes it credible)
+
+The single most important control: a **random direction of equal norm**. If a
+random perturbation of the same magnitude steered the concept just as well, the
+SAE feature would mean nothing. It doesn't:
+
+![Effect vs. fluency cost for SAE / random / mean-difference](docs/baselines.png)
+
+- **Random (norm-matched): effect 0.000 at every coefficient**, all the way out to
+  KL ≈ 0.5. Randomly pushing the residual by the same amount *never* produces dogs.
+  The SAE feature's effect is therefore causal and direction-specific, not an
+  artifact of perturbation magnitude. ✅
+- **Mean-difference** (`mean(resid | dog) − mean(resid | ¬dog)`, norm-matched): a
+  strong baseline that is **competitive with — and at its peak exceeds — the SAE
+  feature** (0.83 vs 0.61 effect, at similar KL). We report this straight rather
+  than hide it: diff-in-means is a genuinely strong steering direction, consistent
+  with recent findings ([AxBench](https://arxiv.org/abs/2501.17148)). The SAE
+  feature is validated as a *real, specific, interpretable* direction — not as the
+  uniquely best steering vector.
+
+### Specificity
+
+Steering the dog feature moves **only** dogs. Three off-target probes
+(cat, ocean, music) stay pinned at 0 while the target climbs to 0.61:
+
+![Specificity: target rises, off-targets flat](docs/specificity.png)
 
 ---
 
@@ -199,10 +223,15 @@ qualitative version of the dose-response and fluency results below.
 ```bash
 scalpel eval --feature 8243 --concept dog --terms dog dogs puppy puppies \
   --coefs -40 -20 -10 0 10 20 30 40 50 60 \
+  --prompts "I think that" "The weather today" "Let me tell you about" \
+            "My favorite thing is" "Yesterday I went to" "When I woke up this morning" \
+  --baselines --probes cat ocean music \
   --config configs/gpt2-small.yaml --out outputs/gpt2_dog
 ```
 
-This regenerates the [headline result](#headline-result) plot and table above.
+`--baselines` adds the **random** and **mean-difference** control sweeps;
+`--probes` adds the **specificity** panel. This one command regenerates every
+plot and table in the [headline result](#headline-result) above.
 
 ---
 
@@ -213,7 +242,7 @@ This regenerates the [headline result](#headline-result) plot and table above.
 | `scalpel smoke` | ✅ M1 | Load a model + SAE and report reconstruction error. |
 | `scalpel discover --concept X` | ✅ M2 | Find the SAE feature(s) most associated with a concept. |
 | `scalpel steer --feature N --coef C --prompt "..."` | ✅ M3 | Steer generation with a feature direction. |
-| `scalpel eval` | ✅ M4 | Coefficient sweep → dose-response + fluency (baselines/specificity land in M5). |
+| `scalpel eval` | ✅ M4–5 | Coefficient sweep → dose-response, fluency, baseline controls, specificity. |
 
 ---
 
@@ -262,7 +291,7 @@ gpt2-small reconstruction smoke.
 2. **✅ Feature discovery** — contrastive scoring + max-activating examples over a corpus; Neuronpedia labels.
 3. **✅ Steering hook** — inject the feature direction during generation; qualitative before/after.
 4. **✅ Measurement** — effect (keyword + Ollama judge) + fluency (perplexity/KL); coefficient sweep → dose-response plot.
-5. **Controls** — random-direction and mean-difference baselines; specificity panel.
+5. **✅ Controls** — random-direction and mean-difference baselines; specificity panel.
 6. **Package** — CLI polish, reproducible demo notebook, README with plots + results table.
 
 ---
