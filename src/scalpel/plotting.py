@@ -70,3 +70,84 @@ def plot_fluency(result: SweepResult, path: str | Path) -> Path:
     fig.savefig(path, dpi=140)
     plt.close(fig)
     return path
+
+
+def plot_baseline_comparison(
+    results: dict[str, SweepResult], path: str | Path, *, concept: str = ""
+) -> Path:
+    """Effect vs. KL for each steering direction — the credibility control.
+
+    A more *targeted* direction sits up and to the left: more concept effect for
+    the same divergence from the base model. The SAE feature should dominate the
+    random and mean-difference baselines.
+    """
+    plt = _import_pyplot()
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    styles = {
+        "sae": ("#2563eb", "o", "SAE feature"),
+        "random": ("#9ca3af", "x", "random (norm-matched)"),
+        "meandiff": ("#f59e0b", "s", "mean-difference"),
+    }
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for label, result in results.items():
+        color, marker, name = styles.get(label, ("#111827", ".", label))
+        kls = [row.mean_kl for row in result.rows]
+        effects = [row.mean_effect for row in result.rows]
+        order = sorted(range(len(kls)), key=lambda i: kls[i])
+        ax.plot(
+            [kls[i] for i in order],
+            [effects[i] for i in order],
+            marker=marker,
+            color=color,
+            label=name,
+        )
+    ax.set_xlabel("KL(steered ‖ unsteered)  [nats]  — fluency cost")
+    ax.set_ylabel("mean concept effect  [0, 1]")
+    ax.set_title("Targeted-ness per unit fluency cost" + (f": {concept}" if concept else ""))
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=140)
+    plt.close(fig)
+    return path
+
+
+def plot_specificity(result: SweepResult, path: str | Path, *, target: str = "target") -> Path:
+    """Target concept vs. off-target probes across the coefficient sweep."""
+    plt = _import_pyplot()
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    coefs = [row.coef for row in result.rows]
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(
+        coefs,
+        [row.mean_effect for row in result.rows],
+        marker="o",
+        linewidth=2.2,
+        color="#2563eb",
+        label=f"{target} (target)",
+    )
+    probe_names = list(result.rows[0].probe_effects) if result.rows else []
+    for name in probe_names:
+        ax.plot(
+            coefs,
+            [row.probe_effects.get(name, 0.0) for row in result.rows],
+            marker=".",
+            linewidth=1.0,
+            alpha=0.8,
+            label=name,
+        )
+    ax.set_xlabel("steering coefficient")
+    ax.set_ylabel("mean concept effect  [0, 1]")
+    ax.set_title("Specificity: target rises, off-targets stay flat")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=140)
+    plt.close(fig)
+    return path
