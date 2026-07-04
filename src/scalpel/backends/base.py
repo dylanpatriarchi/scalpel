@@ -45,9 +45,28 @@ class ModelBackend(Protocol):
         vector: torch.Tensor | None = None,
         coef: float = 0.0,
     ) -> str:
-        """Generate text, optionally adding ``coef * vector`` at ``hook_name``.
+        """Generate text, optionally adding ``coef * vector`` at ``hook_name``."""
+        ...
 
-        Implemented from milestone 3 onward; a backend may raise
-        ``NotImplementedError`` until then.
+    def token_nll(self, text: str) -> float:
+        """Mean negative log-likelihood of ``text`` under the unsteered model.
+
+        Perplexity is ``exp`` of this; used to score the fluency of a steered
+        generation against the base model.
+        """
+        ...
+
+    def next_token_logits(
+        self,
+        prompt: str,
+        *,
+        hook_name: str | None = None,
+        vector: torch.Tensor | None = None,
+        coef: float = 0.0,
+    ) -> torch.Tensor:
+        """Last-position next-token logits ``[vocab]``, optionally steered.
+
+        Comparing steered vs. unsteered logits over a fixed prompt set gives the
+        KL-divergence fluency signal.
         """
         ...

@@ -78,3 +78,27 @@ class TransformerLensBackend:
         hook = make_steering_hook(vector.to(self._device), coef)
         with self.model.hooks(fwd_hooks=[(hook_name, hook)]):
             return str(self.model.generate(prompt, **kwargs))
+
+    def token_nll(self, text: str) -> float:
+        tokens = self.model.to_tokens(text)
+        loss = self.model(tokens, return_type="loss")
+        return float(loss.item())
+
+    def next_token_logits(
+        self,
+        prompt: str,
+        *,
+        hook_name: str | None = None,
+        vector: torch.Tensor | None = None,
+        coef: float = 0.0,
+    ) -> torch.Tensor:
+        tokens = self.model.to_tokens(prompt)
+        if vector is None or coef == 0.0 or hook_name is None:
+            logits = self.model(tokens, return_type="logits")
+        else:
+            from ..steering import make_steering_hook
+
+            hook = make_steering_hook(vector.to(self._device), coef)
+            with self.model.hooks(fwd_hooks=[(hook_name, hook)]):
+                logits = self.model(tokens, return_type="logits")
+        return logits[0, -1].float().detach().cpu()

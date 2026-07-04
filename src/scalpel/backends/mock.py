@@ -42,6 +42,8 @@ class MockBackend:
         n = self._n_tokens(text)
         return torch.randn(n, self._d_model, generator=gen).abs()
 
+    VOCAB = 32
+
     def generate(
         self,
         prompt: str,
@@ -53,3 +55,26 @@ class MockBackend:
     ) -> str:
         tag = "" if coef == 0.0 or vector is None else f" [steered coef={coef:g}]"
         return f"{prompt} ...[mock generation]{tag}"
+
+    def _prompt_seed(self, prompt: str) -> int:
+        # Deterministic per-prompt offset independent of PYTHONHASHSEED.
+        return self._seed + sum(prompt.encode("utf-8")) % 1000
+
+    def token_nll(self, text: str) -> float:
+        # Deterministic, finite pseudo-loss so perplexity is well-defined.
+        return 2.0 + (len(text) % 5) * 0.1
+
+    def next_token_logits(
+        self,
+        prompt: str,
+        *,
+        hook_name: str | None = None,
+        vector: torch.Tensor | None = None,
+        coef: float = 0.0,
+    ) -> torch.Tensor:
+        gen = torch_generator(self._prompt_seed(prompt), device="cpu")
+        logits = torch.randn(self.VOCAB, generator=gen)
+        if vector is not None and coef != 0.0:
+            # A coef-dependent shift so KL(steered || base) grows with |coef|.
+            logits = logits + coef * 0.1 * torch.arange(self.VOCAB, dtype=torch.float32)
+        return logits
