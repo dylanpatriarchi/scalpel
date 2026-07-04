@@ -10,12 +10,15 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from .backends import ModelBackend, build_backend
 from .cache import ActivationCache
 from .config import Backend, ScalpelConfig, load_config, mock_config
 from .corpus import load_corpus
 from .discovery import discover_features
+from .experiment import SweepResult, run_sweep
+from .metrics.effect import EffectScorer, JudgeScorer, KeywordScorer
 from .neuronpedia import fetch_label
 from .sae import SAEWrapper
 from .seed import set_seed
@@ -165,8 +168,84 @@ def cmd_steer(args: argparse.Namespace) -> int:
     return 0
 
 
+def _build_scorer(args: argparse.Namespace, cfg: ScalpelConfig, terms: list[str]) -> EffectScorer:
+    """Pick the effect scorer: Ollama judge if requested and reachable, else keyword."""
+    if args.judge:
+        from .judge import OllamaJudge
+
+        judge = OllamaJudge(cfg.eval.judge_model, cfg.eval.judge_host)
+        if judge.available():
+            print(f"  scorer            : Ollama judge ({cfg.eval.judge_model})")
+            return JudgeScorer(judge, args.concept)
+        print(
+            f"  scorer            : judge {cfg.eval.judge_model} unreachable, "
+            "falling back to keyword",
+            file=sys.stderr,
+        )
+    print(f"  scorer            : keyword {terms}")
+    return KeywordScorer(terms)
+
+
+def _print_table(result: SweepResult) -> None:
+    print(f"  {'coef':>8} {'effect':>8} {'perplexity':>12} {'KL':>8}")
+    for row in result.rows:
+        print(
+            f"  {row.coef:>8.2f} {row.mean_effect:>8.3f} "
+            f"{row.mean_perplexity:>12.3f} {row.mean_kl:>8.4f}"
+        )
+
+
 def cmd_eval(args: argparse.Namespace) -> int:
-    return _not_yet("eval", 4)
+    """Run the coefficient sweep and produce the dose-response + fluency results."""
+    cfg = _load_cfg(args.config, args.backend, args.seed)
+    set_seed(cfg.seed)
+
+    backend = build_backend(cfg)
+    sae = build_sae(cfg, backend)
+    try:
+        vector = sae.feature_direction(args.feature)
+    except IndexError as exc:
+        print(f"eval: {exc}", file=sys.stderr)
+        return 2
+
+    terms = args.terms if args.terms else [args.concept]
+    coefs = args.coefs if args.coefs else cfg.steer.coefs
+    prompts = args.prompts if args.prompts else cfg.eval.prompts
+
+    print(f"scalpel eval  feature={args.feature}  concept={args.concept!r}")
+    print(f"  hook              : {sae.hook_name}")
+    print(f"  coefs             : {coefs}")
+    print(f"  prompts           : {len(prompts)}")
+    scorer = _build_scorer(args, cfg, terms)
+
+    result = run_sweep(
+        backend,
+        vector,
+        sae.hook_name,
+        prompts,
+        coefs,
+        scorer,
+        label="sae",
+        max_new_tokens=args.max_new_tokens,
+        seed=cfg.seed,
+    )
+    _print_table(result)
+
+    out = Path(args.out)
+    csv_path = result.write_csv(out / "sweep_sae.csv")
+    json_path = result.write_json(out / "sweep_sae.json")
+    print(f"  wrote             : {csv_path}  {json_path}")
+
+    if not args.no_plots:
+        try:
+            from .plotting import plot_dose_response, plot_fluency
+
+            dr = plot_dose_response(result, out / "dose_response.png", concept=args.concept)
+            fl = plot_fluency(result, out / "fluency.png")
+            print(f"  plots             : {dr}  {fl}")
+        except ImportError:
+            print("  plots             : skipped (install the 'viz' extra)", file=sys.stderr)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -222,7 +301,27 @@ def build_parser() -> argparse.ArgumentParser:
     steer.set_defaults(func=cmd_steer)
 
     ev = sub.add_parser("eval", help="Run the coefficient sweep and metrics.")
-    ev.add_argument("--config")
+    ev.add_argument("--feature", type=int, required=True, help="SAE feature index to sweep.")
+    ev.add_argument("--concept", required=True, help="Concept the effect metric scores for.")
+    ev.add_argument("--terms", nargs="+", help="Keyword terms for the scorer (default: concept).")
+    ev.add_argument(
+        "--coefs",
+        nargs="+",
+        type=float,
+        help="Coefficients to sweep (default: config steer.coefs).",
+    )
+    ev.add_argument(
+        "--prompts", nargs="+", help="Prompts to evaluate (default: config eval.prompts)."
+    )
+    ev.add_argument("--config", help="YAML config (defaults to the mock backend).")
+    ev.add_argument(
+        "--backend", choices=[b.value for b in Backend], help="Override the config backend."
+    )
+    ev.add_argument("--seed", type=int, help="Override the config seed.")
+    ev.add_argument("--max-new-tokens", type=int, default=40, help="Tokens to generate per prompt.")
+    ev.add_argument("--judge", action="store_true", help="Score with the Ollama LLM-judge.")
+    ev.add_argument("--out", default="outputs", help="Directory for results and plots.")
+    ev.add_argument("--no-plots", action="store_true", help="Skip plot generation.")
     ev.set_defaults(func=cmd_eval)
 
     return parser
