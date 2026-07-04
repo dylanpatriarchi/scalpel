@@ -1,8 +1,12 @@
 """Command-line interface.
 
-Milestone 1 implements ``scalpel smoke`` (load a model + SAE and report
-reconstruction quality). ``discover``, ``steer`` and ``eval`` are declared so
-the surface is stable but land in later milestones.
+Four commands cover the pipeline:
+
+* ``smoke``    — load a model + SAE and report reconstruction quality;
+* ``discover`` — find the SAE features most associated with a concept;
+* ``steer``    — generate with/without a feature-steering vector;
+* ``eval``     — coefficient sweep with dose-response, fluency, baseline
+  controls (``--baselines``) and specificity (``--probes``).
 """
 
 from __future__ import annotations
